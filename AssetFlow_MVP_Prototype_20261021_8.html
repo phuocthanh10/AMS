@@ -1269,7 +1269,14 @@ function openDrawer({title, sub='', body, actions, foot='', width, wide=false, m
   $('#dov').classList.add('open'); d.classList.add('open');
 }
 /* Switch — DS rule: every Active / Inactive state uses a switch */
-const swt = (on, {id='', change='', dis=false, on_l='Active', off_l='Inactive'}={}) => `<label class="ds-switch" onclick="event.stopPropagation()"><input type="checkbox" ${id?`id="${id}"`:''} ${on?'checked':''} ${dis?'disabled':''} onchange="${change||`this.parentElement.querySelector('.tl').textContent=this.checked?'${on_l}':'${off_l}'`}"><span class="trk"></span><span class="tl">${on?on_l:off_l}</span></label>`;
+/* DS: no switch in the system — status shown as badge (grid / view); edit form uses a segmented control Active | Inactive
+   (hidden checkbox keeps the id, so $('#id').checked still works) */
+const swt = (on, {id='', change='', dis=false, on_l='Active', off_l='Inactive'}={}) => (!id && change)
+  ? badge(on ? on_l : off_l, on ? 'b-green' : 'b-gray')
+  : `<span class="seg${dis?' dis':''}" onclick="event.stopPropagation()"><input type="checkbox" hidden ${id?`id="${id}"`:''} ${on?'checked':''}>`
+    + `<button type="button" class="${on?'on':''}" ${dis?'disabled':''} onclick="segSet(this,true)">${on_l}</button><button type="button" class="${on?'':'on'}" ${dis?'disabled':''} onclick="segSet(this,false)">${off_l}</button></span>`;
+function segSet(b, on){ const g = b.parentElement, c = g.querySelector('input'); if(c.checked===on) return;
+  c.checked = on; g.children[1].classList.toggle('on', on); g.children[2].classList.toggle('on', !on); c.dispatchEvent(new Event('change', {bubbles:true})); }
 /* edit-mode section — collapsible like view mode (DS drawer) */
 const esec = (title, content) => `<div class="dsec cd-sec"><div class="cd-sec-h tgl" onclick="this.parentElement.classList.toggle('closed')"><h4>${title}</h4><span style="flex:1"></span><span class="cd-chev">${ic('caret').replace('m7 10 5 5 5-5','m7 14 5-5 5 5')}</span></div><div class="cd-sec-b">${content}</div></div>`;
 /* cell content — DS: Name = main info (link), ID / code = sub info (mono, muted) */
@@ -9214,15 +9221,15 @@ function openRepairForm(assetId, source='Breakdown', editId){
   const lockAsset = t && t.status!=='New';
   openDrawer({title: t?`Edit ticket · ${t.id}`:'New repair ticket', sub:`<span class="sid">AM-028</span>`,
     actions:`<button class="btn" onclick="${t?`openRepair('${t.id}')`:'closeDrawer()'}">Cancel</button>${btnSave(`rpr_save(${t?`'${t.id}'`:'null'})`, t?'Save':'Create ticket')}`,
-    body: esec('Asset', (lockAsset ? `<input type="hidden" id="rpAsset" value="${a0.id}">` : fld('Asset', refField('rpAsset','asset', a0?.id||'', {filter:a=>!isRetired(a) && !isSoftwareCat(a.cat) && !rpr_block(a), onPick:'rpr_assetPicked'}), {req:1}))
-        + `<div id="rpAInfo">${a0?rpr_assetInfo(a0, editId):''}</div>`)
+    body: esec('Repair', `<div class="field-row">${fld('Assignee', selRef('employee','rpAsg', rpr_tech(), t?.assignee||'', {blank:'— Unassigned —'}), {help:'IT department staff'})}${fld('Due date', dinp('rpDue', t?.due || rpr_due(TODAY,'Medium')))}</div>`
+        + `<div class="field-row">${fld('Method', selx('rpMeth', strList(RPR_METHODS), t?.method||'In-house', {blank:null}))}${fld('Vendor', inp('rpVend', t?.vendor||'', 'placeholder="Service provider (warranty / outsourced)"'))}</div>`
+        + `<div class="field-row">${fld('Cost (VND)', CAN_VALUE?rpr_numIn('rpCost', t?.cost, 'Estimated or actual'):'<input type="text" id="rpCost" disabled value="Hidden — no value permission">')}${fld('Condition after repair', selx('rpCond', DB.conditions, t?.condAfter || a0?.cond || 'k2', {blank:null, activeOnly:1}), {req:1})}</div>`
+        + fld('Result', txa('rpRes', t?.result||'', 'Work done, parts replaced…')))
       + esec('Fault', `<div class="field-row">${fld('Source', selx('rpSrc', strList(RPR_SRC), source, {blank:null}), {req:1})}${fld('Priority', selx('rpPri', strList(['Low','Medium','High']), t?.priority||'Medium', {blank:null, attrs:t?'':'onchange="$(\'#rpDue\').value=rpr_due(TODAY,this.value)"'}), {req:1})}</div>`
         + fld('Fault description', txa('rpDesc', t?.desc||'', 'What is wrong? When did it start?'), {req:1})
         + fld('Photos', `<div id="rpPh">${rpr_photos()}</div>`, {help:'Prototype — photo capture is simulated'}))
-      + esec('Repair', `<div class="field-row">${fld('Assignee', selRef('employee','rpAsg', rpr_tech(), t?.assignee||'', {blank:'— Unassigned —'}), {help:'IT department staff'})}${fld('Due date', dinp('rpDue', t?.due || rpr_due(TODAY,'Medium')))}</div>`
-        + `<div class="field-row">${fld('Method', selx('rpMeth', strList(RPR_METHODS), t?.method||'In-house', {blank:null}))}${fld('Vendor', inp('rpVend', t?.vendor||'', 'placeholder="Service provider (warranty / outsourced)"'))}</div>`
-        + `<div class="field-row">${fld('Cost (VND)', CAN_VALUE?rpr_numIn('rpCost', t?.cost, 'Estimated or actual'):'<input type="text" id="rpCost" disabled value="Hidden — no value permission">')}${fld('Condition after repair', selx('rpCond', DB.conditions, t?.condAfter || a0?.cond || 'k2', {blank:null, activeOnly:1}), {req:1})}</div>`
-        + fld('Result', txa('rpRes', t?.result||'', 'Work done, parts replaced…')))});
+      + esec('Asset', (lockAsset ? `<input type="hidden" id="rpAsset" value="${a0.id}">` : fld('Asset', refField('rpAsset','asset', a0?.id||'', {filter:a=>!isRetired(a) && !isSoftwareCat(a.cat) && !rpr_block(a), onPick:'rpr_assetPicked'}), {req:1}))
+        + `<div id="rpAInfo">${a0?rpr_assetInfo(a0, editId):''}</div>`)});
 }
 const rpr_photos = () => Array.from({length:RPR_PH},(_,i)=>phThumb(20+i*40,'IMG '+(i+1))).join('') + `<button type="button" class="ph-add" title="Take / add photo" onclick="RPR_PH++;$('#rpPh').innerHTML=rpr_photos()">${ic('camera')}</button>`;
 function rpr_assetInfo(a, exceptId){
@@ -13176,7 +13183,7 @@ function po1_midMenu(h, a){
   assetTab = function(a, tab){
     let h = at0(a, tab);
     if(!tab || tab==='overview'){
-      h = h.replace(/<label class="ds-switch"[^>]*><input type="checkbox" id="eActive"[\s\S]*?<\/label>/, `${badge(a.status)}<div class="ro-hint">Lifecycle status changes only through vouchers (checkout, check-in, repair, disposal…)</div>`);
+      h = h.replace(/<span class="seg[^"]*"[^>]*><input type="checkbox" hidden id="eActive"[\s\S]*?<\/span>/, `${badge(a.status)}<div class="ro-hint">Lifecycle status changes only through vouchers (checkout, check-in, repair, disposal…)</div>`);
       if(a.status!=='Assigned') h = h.replace('Inactive — cannot be assigned.', `${esc(STATUS_LABEL[a.status]||a.status)} — cannot be checked out.`); }
     if(po1_isMid()) h = po1_midInline(h, a);
     return h; }; }
@@ -18365,7 +18372,12 @@ document.body.classList.add('hide-sid');
 const DSG_EDIT = /^(edit|sửa|chỉnh sửa|편집|수정)(\s|$)/i;
 const DSG_SPEC = /\b(?:[A-Z]{2,4}-\d{3}|AM-\d{3})\b(?:\s*[,·]\s*(?:[A-Z]{2,4}-\d{3}\b)?)*\s*(?:·\s*)?/g;
 function dsgMenus(){ $$('.dd-pop .mi i, .rowmenu .mi i').forEach(el=>{ if(el.dataset.dsg) return; const t = el.textContent, n = t.replace(DSG_SPEC,'').replace(/^\s*·\s*/,'').trim(); el.dataset.dsg = 1; if(n!==t.trim()){ if(n) el.textContent = n; else el.remove(); } }); }
-function dsgEdit(){ try{ dsgMenus(); }catch(e){}
+/* DS: no banner / alert between page title and list — page-level alerts on list pages are hidden (alerts inside detail / area / drawer stay) */
+function dsgBanners(){ const c = $('.content'); if(!c || !c.querySelector('.dg-panel')) return;
+  c.querySelectorAll('.alert').forEach(el=>{ if(el.dataset.dsgb) return; el.dataset.dsgb = 1;
+    if(el.closest('#drw,#drw2,.modal,.area,.card,.panel,.dg-panel,.dsec,.kpi,.tv35-steps')) return;
+    const w = el.parentElement; el.style.display = 'none'; if(w && w!==c && !w.textContent.replace(el.textContent,'').trim() && w.children.length===1) w.style.display = 'none'; }); }
+function dsgEdit(){ try{ dsgMenus(); }catch(e){} try{ dsgBanners(); }catch(e){}
   const scopes = [];
   const d1 = $('#drw.open'), d2 = $('#drw2.open');
   if(d1) scopes.push([d1.querySelector('#drwBody'), d1.querySelector('#drwHead')]);
